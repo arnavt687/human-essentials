@@ -121,7 +121,7 @@ module StockoutReport
     [months, months.map { |mo| by_month.fetch(mo, 0.0) }]
   end
 
-  Row = Struct.new(:item, :months, :history, :forecast, :decision, :on_hand, keyword_init: true)
+  Row = Struct.new(:item, :months, :history, :forecast, :decision, :on_hand)
 
   def build(demand, on_hand, lead_time:, review:, service_level:, today:)
     all_months = demand.values.flat_map(&:keys)
@@ -156,7 +156,7 @@ module StockoutReport
     return "" if values.empty? || values.max.to_f.zero?
 
     max = values.max.to_f
-    step = values.size > 1 ? width.to_f / (values.size - 1) : 0
+    step = (values.size > 1) ? width.to_f / (values.size - 1) : 0
     pts = values.each_with_index.map { |v, i| format("%.1f,%.1f", i * step, height - (v / max * (height - 2)) - 1) }
     %(<svg width="#{width}" height="#{height}" viewBox="0 0 #{width} #{height}" aria-hidden="true"><polyline fill="none" stroke="currentColor" stroke-width="1.5" points="#{pts.join(" ")}"/></svg>)
   end
@@ -194,7 +194,7 @@ if $PROGRAM_NAME == __FILE__
   end.parse!
   abort "Missing distributions CSV. Try --help." if ARGV.empty?
 
-  today = Date.today
+  today = Date.today # rubocop:disable Rails/Date
   demand, warnings = StockoutReport.read_demand(ARGV[0])
   on_hand = StockoutReport.read_on_hand(opts[:on_hand])
   missing = on_hand.keys - demand.keys
