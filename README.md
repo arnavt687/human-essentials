@@ -1,6 +1,16 @@
 # Human Essentials
 > _Inventory control for Diaper Banks and other Essentials Banks_
 
+> [!NOTE]
+> **This is a fork by [@arnavt687](https://github.com/arnavt687)** of Ruby for Good's
+> [Human Essentials](https://github.com/rubyforgood/human-essentials) (MIT License).
+> It adds a **Replenishment Planner**: demand forecasting with backtested model selection,
+> a service-level-based (R, S) reorder policy with safety stock, and max-min fair allocation
+> of scarce stock across partner agencies.
+> **[Read how it works →](docs/replenishment.md)**
+>
+> Everything below this box is the original upstream README.
+
 <p align="center">
 <a href="https://app.digitalpublicgoods.net/a/10622">
 <img src="https://user-images.githubusercontent.com/667909/181150972-e59a77ab-b657-4893-aef9-d3df1384a506.png" alt="DPG Approved" height="40">
