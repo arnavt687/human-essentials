@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stockout Risk Report · <%= ERB::Util.h(bank) %></title>
+<style>
+  :root { --ink:#1d2330; --muted:#667085; --line:#e4e7ec; --bg:#fff; --crit:#b42318; --crit-bg:#fef3f2; --warn:#b54708; --warn-bg:#fffaeb; --ok:#067647; --ok-bg:#ecfdf3; --accent:#2e5aac; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 8px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .tiles { display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:12px; }
+  .tile { border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .tile b { display:block; font-size:26px; line-height:1.2; font-variant-numeric: tabular-nums; }
+  .tile span { color:var(--muted); font-size:13px; }
+  .tile.crit b { color:var(--crit); } .tile.warn b { color:var(--warn); } .tile.ok b { color:var(--ok); }
+  .table-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
+  table { border-collapse: collapse; width:100%; min-width:720px; }
+  th, td { padding:9px 12px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
+  th { font-size:12px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); font-weight:600; background:#f9fafb; }
+  td.num, th.num { text-align:right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom:none; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; white-space:nowrap; }
+  .pill.crit { color:var(--crit); background:var(--crit-bg); } .pill.warn { color:var(--warn); background:var(--warn-bg); }
+  .pill.ok { color:var(--ok); background:var(--ok-bg); } .pill.muted { color:var(--muted); background:#f2f4f7; }
+  .spark { color: var(--accent); }
+  .note { color:var(--muted); font-size:13px; }
+  ul.note { padding-left:18px; }
+  footer { margin-top:32px; padding-top:16px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; }
+  @media print { main { padding:0; } .table-wrap { border:none; } h2 { break-after: avoid; } tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Stockout Risk Report</h1>
+  <p class="sub"><%= ERB::Util.h(bank) %> · prepared <%= today.strftime("%B %-d, %Y") %> · based on <%= rows.first.months.size %> months of distributions (<%= rows.first.months.first.strftime("%b %Y") %> to <%= rows.first.months.last.strftime("%b %Y") %>)</p>
+
+  <div class="tiles">
+  <% if has_on_hand -%>
+    <div class="tile crit"><b><%= rows.count { |r| r.on_hand && r.decision.status == :critical } %></b><span>items likely to run out before a new order arrives</span></div>
+    <div class="tile warn"><b><%= rows.count { |r| r.on_hand && r.decision.status == :reorder } %></b><span>items at or below their reorder point</span></div>
+    <div class="tile ok"><b><%= rows.count { |r| r.on_hand && r.decision.status == :ok } %></b><span>items stocked above their reorder point</span></div>
+  <% else -%>
+    <div class="tile"><b><%= rows.size %></b><span>items forecast</span></div>
+  <% end -%>
+    <div class="tile"><b><%= skill ? "#{(skill * 100).round}%" : "n/a" %></b><span>lower forecast error than “same as last month,” tested on your own history</span></div>
+  </div>
+
+  <h2><%= has_on_hand ? "What to reorder" : "Forecasts and reorder points" %></h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>Item</th><% if has_on_hand %><th>Status</th><th class="num">On hand</th><% end %>
+      <th class="num">Expected next month</th><th class="num">Reorder point</th>
+      <% if has_on_hand %><th class="num">Days of supply</th><th class="num">Suggested order</th><% end %>
+      <th>Last <%= [rows.first.months.size, 24].min %> months</th>
+    </tr></thead>
+    <tbody>
+    <% rows.each do |r| label, css, _ = StockoutReport::STATUS[r.decision.status] -%>
+      <tr>
+        <td><%= ERB::Util.h(r.item) %></td>
+        <% if has_on_hand %>
+        <td><% if r.on_hand %><span class="pill <%= css %>"><%= label %></span><% else %><span class="pill muted">No count</span><% end %></td>
+        <td class="num"><%= r.on_hand ? StockoutReport.fmt(r.on_hand) : "—" %></td>
+        <% end %>
+        <td class="num"><%= StockoutReport.fmt(r.forecast.next_month.round) %></td>
+        <td class="num"><%= StockoutReport.fmt(r.decision.reorder_point) %></td>
+        <% if has_on_hand %>
+        <td class="num"><%= r.on_hand && r.decision.days_of_supply ? StockoutReport.fmt(r.decision.days_of_supply) : "—" %></td>
+        <td class="num"><b><%= r.on_hand && r.decision.suggested_order.positive? ? StockoutReport.fmt(r.decision.suggested_order) : "—" %></b></td>
+        <% end %>
+        <td class="spark"><%= StockoutReport.sparkline(r.history.last(24)) %></td>
+      </tr>
+    <% end -%>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>How to read this</h2>
+  <ul class="note">
+    <li><b>Expected next month</b> is a forecast from your own distribution history. For each item, several simple methods were tested on past months and the most accurate one was kept.</li>
+    <li><b>Reorder point</b> is the stock level at which you should place an order so you don't run out while waiting <%= settings[:lead_time] %> days for it to arrive, with a buffer that covers about <%= (settings[:service_level] * 100).round %>% of likely demand swings.</li>
+    <% if has_on_hand %><li><b>Suggested order</b> brings stock up to roughly <%= ((settings[:lead_time] + settings[:review]) / 30.4).round(1) %> months of expected demand plus that buffer.</li><% end %>
+    <li>Distribution history can undercount true need in months when you ran out. If you tell me which months that happened, I can correct for it.</li>
+  </ul>
+  <% if warnings.any? %><p class="note">Data notes: <%= warnings.map { |w| ERB::Util.h(w) }.join("; ") %></p><% end %>
+
+  <footer>Prepared with the open-source Replenishment Planner for Human Essentials. Data is used only to produce this report and is deleted afterwards.</footer>
+</main>
+</body>
+</html>
